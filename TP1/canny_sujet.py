@@ -50,6 +50,12 @@ def sample_image(I, x, y):
     # see http://docs.scipy.org/doc/numpy/user/basics.indexing.html#indexing-multi-dimensional-arrays
     return I[y, x]
 
+def gaussian_kernel(size, sigma):
+    size = int(size) // 2
+    x, y = np.mgrid[-size:size+1, -size:size+1]
+    normal = 1 / (2.0 * np.pi * sigma**2)
+    g =  np.exp(-((x**2 + y**2) / (2.0*sigma**2))) * normal
+    return g
 
 def smooth_gaussian(im, sigma):
     # https://stackoverflow.com/questions/29731726/how-to-calculate-a-gaussian-kernel-matrix-efficiently-in-numpy
@@ -67,20 +73,32 @@ def smooth_gaussian(im, sigma):
     # avant de faire une division
     # verifiez numériquement la symétrie de votre gaussienne
     # vous pouvez implémenter une autre version qui tire avantage de la séparabilité du filtre
-    ax = np.linspace(- (3 // 2), 3 // 2)
-    ax /= np.sqrt(2)*sigma
-    xx, yy = np.meshgrid(ax, ax)
-    gaussienne = np.exp(-0.5 * (np.square(xx) +
-                                np.square(yy)) / np.square(sigma))
-    plt.plot(gaussienne)
+    gaussian = gaussian_kernel(3*sigma,sigma)
+    plt.plot(gaussian)
     plt.show()
+
+    plt.imshow(gaussian)
+    plt.title("Gaussian function")
+    plt.show()
+
     im_smooth = scipy.ndimage.convolve(
-        im.astype(float), gaussienne[:, :, np.newaxis])
-    plt.imshow(im_smooth.astype('uint8'), cmap=plt.cm.Greys_r)
-    plt.title(u"Convolution")
+        im.astype(float), gaussian[:, :, np.newaxis])
+    plt.imshow(im_smooth.astype('uint8'))
+    plt.title("Convolution")
     plt.show()
     return im_smooth
 
+def sobel_filters(img):
+    img = img.astype(float)
+    Kx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+    Ky = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
+    Ix = scipy.ndimage.filters.convolve(img, Kx)
+    Iy = scipy.ndimage.filters.convolve(img, Ky)
+
+    G = np.hypot(Ix, Iy)
+    G = G / G.max() * 255
+    theta = np.arctan2(Iy, Ix)
+    return (G, theta)
 
 def gradient(im_smooth):
     # TODO:
@@ -88,7 +106,7 @@ def gradient(im_smooth):
     # assurez vous d'avoir préalablement converti l'image en float sans quoi vous n'aurez pas le résultat souhaité
     # verifiez que vous avez n'avez pas calculé le vecteur inverse du gradient i.e que le flèches pointent bien vers les zones plus claires
     # lorsque vous executez display_image_and_vector_field(im_smooth,gradient_x,gradient_y,10,'b')
-
+    gradient_x, gradient_y = sobel_filters(im_smooth)
     display_image_and_vector_field(im_smooth, gradient_x, gradient_y, 10, 'b')
     return gradient_x, gradient_y
 
@@ -131,7 +149,7 @@ def local_maximum(norm_gradient, direction_x, direction_y):
     X, Y = np.meshgrid(np.arange(0, norm_gradient.shape[1]), np.arange(
         0, norm_gradient.shape[0]))
     a = sample_image(norm_gradient, X, Y)  # samples au centre
-    # ...
+    
     return maxi
 
 
@@ -155,6 +173,7 @@ def hysteresis(maxi, norm_gradient, threshold1, threshold2):
     #    à coefficient entiers donne une matrice C de même taille que B avec C[i,j]=A[B[i,j]]
     #   (see http://docs.scipy.org/doc/numpy/user/basics.indexing.html#index-arrays in case
     #    the index array is multidimensional)
+    
     return m1, m2, edges
 
 
