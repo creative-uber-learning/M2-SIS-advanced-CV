@@ -16,7 +16,7 @@ def plot_image_with_color_bar(I, cmap=plt.cm.Greys_r, title=''):
     fig = plt.figure(figsize=(8, 7))
     ax = plt.subplot(1, 1, 1)
     plt.subplots_adjust(left=0.01, right=0.99, top=0.9, bottom=0)
-    implot = plt.imshow(I, cmap)
+    implot = plt.imshow(((I * 255).astype(np.uint8)), cmap)
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
     plt.colorbar(implot, use_gridspec=True)
@@ -29,7 +29,8 @@ def display_image_and_vector_field(I, vx, vy, step, color):
     assert (I.shape == vy.shape)
     fig = plt.figure(figsize=(8, 7))
     ax = plt.subplot(1, 1, 1)
-    plt.imshow(I, cmap=plt.cm.Greys_r)
+    plt.imshow((I * 255).astype(np.uint8))
+    plt.show()
     X, Y = np.meshgrid(np.arange(0, I.shape[1]), np.arange(0, I.shape[0]))
     plt.quiver(X[::step, ::step], Y[::step, ::step],
                vx[::step, ::step], -vy[::step, ::step], color=color)
@@ -59,7 +60,7 @@ def gaussian_kernel(size, sigma):
 
 def smooth_gaussian(im, sigma):
     # https://stackoverflow.com/questions/29731726/how-to-calculate-a-gaussian-kernel-matrix-efficiently-in-numpy
-    # TODO:
+
     # implementez un  lissage de l'image en utilisant un noyau gaussien avec un déviation standard de sigma
     # prenez un taille de noyeau de 3*sigma de chaque coté du centre
     # n'oubliez de convertir l'image en float avant de faire la convolution avec im=im.astype(float)
@@ -89,11 +90,11 @@ def smooth_gaussian(im, sigma):
     return im_smooth
 
 def sobel_filters(img):
-    img = img.astype(float)
-    Kx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
-    Ky = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
-    Ix = scipy.ndimage.filters.convolve(img, Kx)
-    Iy = scipy.ndimage.filters.convolve(img, Ky)
+    
+    Kx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], np.float32)
+    Ky = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], np.float32)
+    Ix = scipy.ndimage.convolve(img.astype(float), Kx[:, :, np.newaxis])
+    Iy = scipy.ndimage.convolve(img.astype(float), Ky[:, :, np.newaxis])
 
     G = np.hypot(Ix, Iy)
     G = G / G.max() * 255
@@ -101,13 +102,13 @@ def sobel_filters(img):
     return (G, theta)
 
 def gradient(im_smooth):
-    # TODO:
     # utilisez scipy.ndimage.convolve pour calculer le gradient de l'image
     # assurez vous d'avoir préalablement converti l'image en float sans quoi vous n'aurez pas le résultat souhaité
     # verifiez que vous avez n'avez pas calculé le vecteur inverse du gradient i.e que le flèches pointent bien vers les zones plus claires
     # lorsque vous executez display_image_and_vector_field(im_smooth,gradient_x,gradient_y,10,'b')
     gradient_x, gradient_y = sobel_filters(im_smooth)
-    display_image_and_vector_field(im_smooth, gradient_x, gradient_y, 10, 'b')
+    # TODO : FIX TO MANY VALUES UNPACK 
+    #display_image_and_vector_field(im_smooth, gradient_x, gradient_y, 10, 'b')
     return gradient_x, gradient_y
 
 
@@ -115,7 +116,8 @@ def gradient_norm_angle(gradient_x, gradient_y):
     # TODO:
     # calculez la norm du gradient pour chaque pixel
     # et utilisez la fonction np.arctan2 pour calculer l'angle du gradient pour chaque pixel, attention l'ordre des deux argument est important
-    # ...
+    norm_gradient = np.sqrt(gradient_y**2 + gradient_x**2)
+    angle = np.arctan2(gradient_x, gradient_y)
     return norm_gradient, angle
 
 
@@ -149,7 +151,7 @@ def local_maximum(norm_gradient, direction_x, direction_y):
     X, Y = np.meshgrid(np.arange(0, norm_gradient.shape[1]), np.arange(
         0, norm_gradient.shape[0]))
     a = sample_image(norm_gradient, X, Y)  # samples au centre
-    
+
     return maxi
 
 
@@ -177,11 +179,12 @@ def hysteresis(maxi, norm_gradient, threshold1, threshold2):
     return m1, m2, edges
 
 
-def canny(im, sigma, threshold1, threshold2, display=True):
+def canny(im, sigma, threshold1, threshold2, display):
     im_smooth = smooth_gaussian(im, sigma)
     gradient_x, gradient_y = gradient(im_smooth)
-    '''
-    # norm_gradient,angle=gradient_norm_angle(gradient_x,gradient_y)
+    
+    norm_gradient,angle=gradient_norm_angle(gradient_x,gradient_y)
+
     # angle_rounded,direction_x,direction_y=approx_angle_direction(angle)
     # maxi=local_maximum(norm_gradient,direction_x,direction_y)
     # m1,m2,edges=hysteresis(maxi,norm_gradient,threshold1,threshold2)
@@ -190,10 +193,10 @@ def canny(im, sigma, threshold1, threshold2, display=True):
     # angle_rounded.astype(np.float16),direction_x.astype(np.int8),direction_y.astype(np.int8),maxi,m1,m2,edges]
     # pickle.dump(l,f)
 
-    with open('canny_etapes.pkl', 'wb') as f:
+    '''with open('canny_etapes.pkl', 'wb') as f:
         im_smooth, gradient_x, gradient_y, norm_gradient, angle,\
             angle_rounded, direction_x, direction_y, maxi, m1, m2, edges = pickle.load(
-                f)
+                f)'''
 
     if display:
         plt.ion()
@@ -203,8 +206,7 @@ def canny(im, sigma, threshold1, threshold2, display=True):
         pause()
         plot_image_with_color_bar(gradient_y, title='gradient x')
         pause()
-        display_image_and_vector_field(
-            im_smooth, gradient_x, gradient_y, 10, 'b')
+        #display_image_and_vector_field(im_smooth, gradient_x, gradient_y, 10, 'b')
         pause()
         plot_image_with_color_bar(norm_gradient, title='norm_gradient')
         pause()
@@ -212,8 +214,7 @@ def canny(im, sigma, threshold1, threshold2, display=True):
         pause()
         plot_image_with_color_bar(angle_rounded, cmap=plt.cm.hsv)
         pause()
-        display_image_and_vector_field(
-            im_smooth, direction_x, direction_y, 15, 'b')
+        #display_image_and_vector_field(im_smooth, direction_x, direction_y, 15, 'b')
         pause()
         plot_image_with_color_bar(m1)
         pause()
@@ -223,13 +224,12 @@ def canny(im, sigma, threshold1, threshold2, display=True):
         pause()
 
     return edges
-    '''
 
 
 def main():
     im = cv2.imread('einstein.jpg')
     sigma = 5
-    edges = canny(im, sigma, threshold1=1, threshold2=4, display=True)
+    edges = canny(im, sigma, threshold1=1, threshold2=4, display=False)
 
 
 if __name__ == "__main__":
