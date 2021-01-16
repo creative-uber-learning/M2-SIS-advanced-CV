@@ -2,39 +2,37 @@ import numpy as np
 import scipy.ndimage
 import pickle
 import matplotlib.pyplot as plt
-import cv2
-
+import imageio
 
 def pause():
     """this function allows to refresh a figure and do a pause"""
     plt.draw()
-    plt.pause(0.001)
+    plt.pause(1)
 
 
 def plot_image_with_color_bar(I, cmap=plt.cm.Greys_r, title=''):
     """this function displays an image and a color bar"""
-    fig = plt.figure(figsize=(8, 7))
-    ax = plt.subplot(1, 1, 1)
+    fig = plt.figure(figsize=(8,7))
+    ax=plt.subplot(1,1,1)
     plt.subplots_adjust(left=0.01, right=0.99, top=0.9, bottom=0)
-    implot = plt.imshow(((I * 255).astype(np.uint8)), cmap)
+    implot=plt.imshow(I.astype(float),cmap)
+    pause()
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
-    plt.colorbar(implot, use_gridspec=True)
+    plt.colorbar(implot, use_gridspec=True)    
     plt.title(title)
-
 
 def display_image_and_vector_field(I, vx, vy, step, color):
     """this function displas an image with an overlaid vector field"""
-    assert (vx.shape == vy.shape)
-    assert (I.shape == vy.shape)
-    fig = plt.figure(figsize=(8, 7))
-    ax = plt.subplot(1, 1, 1)
-    plt.imshow((I * 255).astype(np.uint8))
-    plt.show()
-    X, Y = np.meshgrid(np.arange(0, I.shape[1]), np.arange(0, I.shape[0]))
-    plt.quiver(X[::step, ::step], Y[::step, ::step],
-               vx[::step, ::step], -vy[::step, ::step], color=color)
-    # Invert y axis
+    assert (vx.shape==vy.shape)
+    assert (I.shape==vy.shape)
+    fig = plt.figure(figsize=(8,7))
+    ax=plt.subplot(1,1,1)
+    plt.imshow(I.astype(float),cmap=plt.cm.Greys_r)
+    pause()
+    X,Y = np.meshgrid( np.arange(0,I.shape[1]),np.arange(0,I.shape[0]) )
+    plt.quiver(X[::step,::step],Y[::step,::step],vx[::step,::step],-vy[::step,::step],color=color)
+    # dans le cas où l'on affiche une image on a besoin d'inverser la direction y , étrange ...
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False)
     plt.subplots_adjust(left=0.01, right=0.99, top=0.9, bottom=0)
@@ -83,17 +81,17 @@ def smooth_gaussian(im, sigma):
     plt.show()
 
     im_smooth = scipy.ndimage.convolve(
-        im.astype(float), gaussian[:, :, np.newaxis])
+        im.astype(float), gaussian)
     plt.imshow(im_smooth.astype('uint8'))
     plt.title("Convolution")
     plt.show()
     return im_smooth
 
 def sobel_filters(img):
-    Kx = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], np.float32)
-    Ky = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], np.float32)
-    Ix = scipy.ndimage.convolve(img.astype(float), Kx[:, :, np.newaxis])
-    Iy = scipy.ndimage.convolve(img.astype(float), Ky[:, :, np.newaxis])
+    Kx = np.array([[1., -1], [0., 0.]], dtype=np.float32)
+    Ky = np.array([[-1., 0.], [1., 0.]], dtype=np.float32)
+    Ix = scipy.ndimage.convolve(img.astype(float), Kx, mode='constant')
+    Iy = scipy.ndimage.convolve(img.astype(float), Ky, mode='constant')
     return Ix,Iy
 
 def gradient(im_smooth):
@@ -102,13 +100,11 @@ def gradient(im_smooth):
     # verifiez que vous avez n'avez pas calculé le vecteur inverse du gradient i.e que le flèches pointent bien vers les zones plus claires
     # lorsque vous executez display_image_and_vector_field(im_smooth,gradient_x,gradient_y,10,'b')
     gradient_x, gradient_y = sobel_filters(im_smooth)
-    # TODO : FIX TO MANY VALUES UNPACK 
-    #display_image_and_vector_field(im_smooth, gradient_x, gradient_y, 10, 'b')
+    display_image_and_vector_field(im_smooth, gradient_x, gradient_y, 10, 'b')
     return gradient_x, gradient_y
 
 
 def gradient_norm_angle(gradient_x, gradient_y):
-    # TODO:
     # calculez la norm du gradient pour chaque pixel
     # et utilisez la fonction np.arctan2 pour calculer l'angle du gradient pour chaque pixel, attention l'ordre des deux argument est important
     norm_gradient = np.sqrt(gradient_y**2 + gradient_x**2)
@@ -119,8 +115,7 @@ def gradient_norm_angle(gradient_x, gradient_y):
     return norm_gradient, angle
 
 
-def approx_angle_angle_rounded(angle,width,height):
-    # TODO:
+def approx_angle_angle_rounded(angle):
     # arrondissez chaque angle donné à l'angle multiple de pi/4 le plus proche (multipliez par 4/pi , arrondissez , puis remultipliez par pi/4)
     # puis arrondissez pour chaque pixel le vecteur unitaire [cos(angle_rounded),sin(angle_rounded)]
     # au vecteur à coordonnée entières le plus proche i.e. dans [1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]
@@ -128,33 +123,16 @@ def approx_angle_angle_rounded(angle,width,height):
     # avec [angle_rounded_x[i,j],angle_rounded_y[i,j]] le vecteur à coordonnées entière le plus proche de [cos(angle_rounded[i,j]),sin(angle_rounded[i,j])]
     # essayez d'utiliser le caclul matriciel pour éviter de faire des boucles sur les pixels
 
-    angle_rounded = np.around(angle*(4/np.pi)) * np.pi/4
-    direction = np.dstack((np.cos(angle_rounded), np.cos(angle_rounded)))
-    for i in range(0, width):		# count pixel from 0 to x
-        for j in range(0, height):	# count pixel from 0 to y
-            direction[i, j] = direction[i, j]*180/np.pi # transform angle_rounded into degree
-            if direction[i, j][0]<0: # tranform which degree < 0 to 0-360
-                direction[i, j] = direction[i, j]+360 # if degree is negative +360 to become positive degree
-
-    		# classify every pixel
-            if (direction[i, j][0]<22.5 and direction[i, j][0]>=0) or (direction[i, j][0]>=157.5 and direction[i, j][0]<202.5) or (direction[i, j][0]>=337.5 and direction[i, j][0]<=360):
-                   direction[i, j]=0 
-            elif (direction[i, j][0]>=22.5 and direction[i, j][0]<67.5) or (direction[i, j][0]>=202.5 and direction[i, j][0]<247.5):
-                   direction[i, j]=45 
-            elif (direction[i, j][0]>=67.5 and direction[i, j][0]<112.5)or (direction[i, j][0]>=247.5 and direction[i, j][0]<292.5):
-                   direction[i, j]=90 
-            else:
-                   direction[i, j]=135 
-    direction_x = direction[0]
-    direction_y = direction[1]
-    # ces lignes permettent d'éviter de sortir de l'image dans la fonction local_maximum
-    direction_x[:, 0] = 0
-    direction_x[:, -1] = 0
-    direction_y[0, :] = 0
-    direction_y[-1, :] = 0
+    angle_rounded = np.round(angle * (4 * np.pi)) * 4 * np.pi
+    direction_x = np.round(np.cos(angle_rounded))
+    direction_y = np.round(np.sin(angle_rounded))
+    # ces lignes permettent d'éviter de sortir de l'image dans la fonction localMaximum
+    direction_x[:,0]=0 
+    direction_x[:,-1]=0
+    direction_y[0,:]=0
+    direction_y[-1,:]=0    
     return angle_rounded, direction_x, direction_y
 
-'''
 def local_maximum(norm_gradient,angle_rounded_x, angle_rounded_y):
     # TODO:
     # ecrivez cette fonction qui renvoi une image binaire avec maxi[i,j]==True si le pixel (i,j) et un
@@ -167,29 +145,13 @@ def local_maximum(norm_gradient,angle_rounded_x, angle_rounded_y):
     X, Y = np.meshgrid(np.arange(0, norm_gradient.shape[1]), np.arange(
         0, norm_gradient.shape[0]))
     a = sample_image(norm_gradient, X, Y)  # samples au centre
+    right = sample_image(norm_gradient, X + angle_rounded_x, Y + angle_rounded_y)
+    left = sample_image(norm_gradient, X - angle_rounded_x, Y - angle_rounded_y)
 
-    return maxi
-'''
-
-def local_maximum(norm_gradient, width, height, angle_rounded):
-    for i in range(1, width-1):		# count pixel from 1 to x-1
-        for j in range(1, height-1): # count pixel from 1 to y-1
-            if angle_rounded[i,j][0]==0: # if the pixel angle_rounded = 0, compare with it's right and left pixel
-                if (norm_gradient[i, j][0]<=norm_gradient[i, j+1][0]) or (norm_gradient[i, j][0]<=norm_gradient[i, j-1][0]): # if these pixel's norm_gradient are all bigger than norm_gradient[i,j]
-                    norm_gradient[i][j]=0 # set norm_gradient[i, j]=0
-            elif angle_rounded[i, j][0]==45: # if the pixel angle_rounded = 45, compare with it's upper-right and lower-left pixel
-                if (norm_gradient[i, j][0]<=norm_gradient[i-1, j+1][0]) or (norm_gradient[i, j][0]<=norm_gradient[i+1, j-1][0]): # if these pixel's norm_gradient are all bigger than norm_gradient[i,j]
-                    norm_gradient[i, j]=0 # set norm_gradient[i, j]=0
-            elif angle_rounded[i, j][0]==90: # if the pixel angle_rounded = 90, compare with it's upper and lower pixel
-                if (norm_gradient[i, j][0]<=norm_gradient[i+1, j][0]) or (norm_gradient[i, j][0]<=norm_gradient[i-1, j][0]): # if these pixel's norm_gradient are all bigger than norm_gradient[i,j]
-                    norm_gradient[i, j]=0 # set norm_gradient[i, j]=0
-            else: # if the pixel angle_rounded = 135, compare with it's lower-right and upper-left pixel
-                if (norm_gradient[i, j][0]<=norm_gradient[i+1, j+1][0]) or (norm_gradient[i, j][0]<=norm_gradient[i-1, j-1][0]): # if these pixel's norm_gradient are all bigger than norm_gradient[i,j]
-                    norm_gradient[i, j]=0 # set norm_gradient[i, j]=0
-    maxi = np.max(norm_gradient)
+    maxi = np.logical_and(np.greater(a, right), np.greater(a, left))
     return maxi
 
-def hysteresis(maxi, width, height, norm_gradient, threshold1, threshold2):
+def hysteresis(maxi, norm_gradient, threshold1, threshold2):
     # TODO: codez l'hysteresis (voir le cours )
     # 1) commencer par obtenir m1 et m2
     # 2) puis obtenez une image qui vaut 0 en dehors des bords et une valeur entière
@@ -210,51 +172,40 @@ def hysteresis(maxi, width, height, norm_gradient, threshold1, threshold2):
     #   (see http://docs.scipy.org/doc/numpy/user/basics.indexing.html#index-arrays in case
     #    the index array is multidimensional)
 
-    max_VAL = threshold2*maxi  # set upper bound
-    min_VAL = threshold1*maxi  # set lower bound
+    
+    m_maxi = np.where(maxi, norm_gradient, 0.)
+    m1 = np.where(m_maxi >= threshold1, 1, 0)
+    m2 = np.where(m_maxi >= threshold2, 1, 0)
 
-    M_above_high=np.zeros((width,height), dtype='f') # initial the table with pixel value above upper bound are sure to be edges
-    M_above_low=np.zeros((width,height), dtype='f')  # initial the table with pixel value above lower bound,
-    									    # the pixel thich below the lower bound are sure to be non-edges
 
-    # fill the pixel value in "M_above_high" and "M_above_low"
-    for i in range(0, width):							 # count image pixel from 0 to x
-        for j in range(0, height):						 # count image pixel from 0 to y
-            if norm_gradient[i,j][0]>=max_VAL: 			 # if pixel magnitude value > upper bound
-                M_above_high[i,j] = norm_gradient[i,j][0]	 # store to M_above_high
-            if norm_gradient[i,j][0]>=min_VAL:				 # if pixel magnitude value > lower bound
-                M_above_low[i,j] = norm_gradient[i,j][0]	 # store to M_above_low
+    weak_adj_structure = np.ones((3, 3))
+    m_curves, number_curves = scipy.ndimage.label(m1, weak_adj_structure)
 
-    M_above_low = M_above_low - M_above_high # calculte the magnitude value which are less than uper bound and greater than lower bound
-    										 # These are classified edges or non-edges based on their connectivity
+    curve_maxima = scipy.ndimage.maximum(m2, labels=m_curves, index=np.arange(number_curves + 1))
+    edges = curve_maxima[m_curves]
 
-    for i in range(1, width-1): 		# count pixel in M_above_high
-        for j in range(1, height-1): 	# count pixel in M_above_high
-            if M_above_high[i,j]: 	# if the pixel's value is greater than upper bound
-                M_above_high[i,j]=1 # set [i,j] is an edge = 1
-                linking(i, j, M_above_high, M_above_low) # call finction to find next edge pixel around [i, j]
-
-    return M_above_high
+    return m1, m2, edges
 
 def canny(im, sigma, threshold1, threshold2, display):
+    im = im.astype(np.float)
     im_smooth = smooth_gaussian(im, sigma)
     gradient_x, gradient_y = gradient(im_smooth)
     
     norm_gradient,angle=gradient_norm_angle(gradient_x,gradient_y)
 
-    angle_rounded,angle_rounded_x,angle_rounded_y=approx_angle_angle_rounded(angle,im.shape[0],im.shape[1])
-    maxi=local_maximum(norm_gradient,im.shape[0],im.shape[1],angle_rounded)
-    edges=hysteresis(maxi,im.shape[0], im.shape[1], norm_gradient,threshold1,threshold2)
+    angle_rounded,angle_rounded_x,angle_rounded_y=approx_angle_angle_rounded(angle)
+    maxi=local_maximum(norm_gradient,angle_rounded_x,angle_rounded_y)
+    m1,m2,edges=hysteresis(maxi,norm_gradient,threshold1,threshold2)
     
-    # with open('canny_etapes.pkl', 'wb') as f:
-    # l=[im_smooth.astype(np.float16),gradient_x.astype(np.float16),gradient_y.astype(np.float16),norm_gradient.astype(np.float16),angle.astype(np.float16),\
-    # angle_rounded.astype(np.float16),angle_rounded_x.astype(np.int8),angle_rounded_y.astype(np.int8),maxi,m1,m2,edges]
-    # pickle.dump(l,f)
+    with open('canny_etapes.pkl', 'wb') as f:
+        l=[im_smooth.astype(np.float16),gradient_x.astype(np.float16),gradient_y.astype(np.float16),norm_gradient.astype(np.float16),angle.astype(np.float16),\
+        angle_rounded.astype(np.float16),angle_rounded_x.astype(np.int8),angle_rounded_y.astype(np.int8),maxi,m1,m2,edges]
+        pickle.dump(l,f)
 
-    '''with open('canny_etapes.pkl', 'rb') as f:
+    with open('canny_etapes.pkl', 'rb') as f:
         im_smooth, gradient_x, gradient_y, norm_gradient, angle,\
             angle_rounded, angle_rounded_x, angle_rounded_y, maxi, m1, m2, edges = pickle.load(
-                f)'''
+                f)
 
     if display:
         plt.ion()
@@ -264,7 +215,7 @@ def canny(im, sigma, threshold1, threshold2, display):
         pause()
         plot_image_with_color_bar(gradient_y, title='gradient x')
         pause()
-        #display_image_and_vector_field(im_smooth, gradient_x, gradient_y, 10, 'b')
+        display_image_and_vector_field(im_smooth, gradient_x, gradient_y, 10, 'b')
         pause()
         plot_image_with_color_bar(norm_gradient, title='norm_gradient')
         pause()
@@ -272,7 +223,7 @@ def canny(im, sigma, threshold1, threshold2, display):
         pause()
         plot_image_with_color_bar(angle_rounded, cmap=plt.cm.hsv)
         pause()
-        #display_image_and_vector_field(im_smooth, angle_rounded_x, angle_rounded_y, 15, 'b')
+        display_image_and_vector_field(im_smooth, angle_rounded_x, angle_rounded_y, 15, 'b')
         pause()
         plot_image_with_color_bar(edges)
 
@@ -280,7 +231,7 @@ def canny(im, sigma, threshold1, threshold2, display):
 
 
 def main():
-    im = cv2.imread('einstein.jpg')
+    im = imageio.imread('einstein.jpg')
     sigma = 5
     edges = canny(im, sigma, threshold1=1, threshold2=4, display=True)
 
