@@ -60,7 +60,7 @@ class marking():
                 valid = 0
                 print("Unexpected error:", sys.exc_info()
                       [0], sys.exc_info()[1])
-            if duration > max_duration:
+            if duration is not None and duration > max_duration:
                 print('executation time ('+str(duration) +
                       ') expected to be less than ' + str(max_duration))
                 valid = valid*relative_coef_duration
