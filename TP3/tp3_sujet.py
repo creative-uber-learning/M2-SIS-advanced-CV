@@ -9,6 +9,7 @@ import pickle
 from scipy import sparse
 from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve, cg
+import skimage.feature
 
 
 def pause():
@@ -43,54 +44,6 @@ def smoothedGradient(im, sigma):
     return im_x, im_y
 
 
-'''
-def HarrisScore(im, sigma1, sigma2, k=0.06):
-    """this function compute the harris score for each pixel in the image and return the result as an image"""
-    # cornerness score will be stored in this image
-    R = np.zeros(im.shape)
-    offset = int(sigma1/2)
-    y_range = im.shape[0] - offset
-    x_range = im.shape[1] - offset
-    dx, dy = smoothedGradient(im, sigma1)
-    for r in range(offset, y_range):
-        for c in range(offset, x_range):
-            M = np.zeros((2, 2))
-            for i in range(r - offset, r + offset + 1):
-                for j in range(c - offset, c + offset + 1):
-                    if i == 0 and j == 0:
-                        continue
-                    # sum up all the Ix and Iy values in the matrix M
-                    M[0, 0] += dx[i, j] * dx[i, j]
-                    M[0, 1] += dx[i, j]*dy[i, j]
-                    M[1, 0] += dx[i, j]*dy[i, j]
-                    M[1, 1] += dy[i, j]*dy[i, j]
-            # computing lambda values using by singular value decomposition
-            u, s, v = np.linalg.svd(M)
-            [lmda1, lmda2] = s
-
-            # computing the R value for (r,c) using lambda values
-            lambda_product = lmda1*lmda2
-            lambda_sum = lmda1 + lmda2
-            R[r, c] = lambda_product - k*(lambda_sum**2)
-    R = (R > 5*abs(np.mean(R)))*R
-    # Non maximum suppression
-    for r in range(1, im.shape[0]-1):
-        for c in range(1, im.shape[1]-1):
-            flag = 0
-            for i in [r-1, r+1]:
-                for j in [c-1, c+1]:
-                    if(R[r, c] < R[i, j]):
-                        R[r, c] = 0
-                        flag = 1
-                        break
-                if(flag == 1):
-                    break
-
-    (X, Y) = np.where(R != 0)
-    return np.array(R[X, Y])
-'''
-
-
 def HarrisScore(im, sigma1, sigma2, k=0.06):
     """this function compute the harris score for each pixel in the image and return the result as an image"""
 
@@ -102,7 +55,7 @@ def HarrisScore(im, sigma1, sigma2, k=0.06):
     Ixx = dx**2
     Ixy = dy*dx
     Iyy = dy**2
-    img_float32 = np.float32(im)
+    im = np.float32(im)
     print("Finding Corners...")
     for y in range(offset, height-offset):
         for x in range(offset, width-offset):
@@ -116,16 +69,14 @@ def HarrisScore(im, sigma1, sigma2, k=0.06):
             trace = Sxx + Syy
             r = det - k*(trace**2)
             if r > sigma2:
-                R = [x, y]
-                img_float32.itemset((y, x), 0)
-                img_float32.itemset((y, x), 0)
-    return img_float32
+                im.itemset((y, x), 0)
+                im.itemset((y, x), 0)
+    return im
 
 
 def HarrisCorners(im, sigma1, sigma2, k=0.06):
     """this function extract local maximums ion the harris score image that are above 0.005 times the maxium of R and a local miximum in a region a radius 2"""
     R = HarrisScore(im, sigma1=sigma1, sigma2=sigma2, k=0.06)
-    import skimage.feature
     peaks = skimage.feature.peak_local_max(R)
     return peaks
 
