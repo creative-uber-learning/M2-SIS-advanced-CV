@@ -7,8 +7,6 @@ from tp3_sujet import *
 
 
 def test():
-    plt.ion()
-
     im1 = np.mean(np.array(imread('Image1.png')).astype(np.float), axis=2)
     im2 = np.mean(np.array(imread('Image2.png')).astype(np.float), axis=2)
 
@@ -34,6 +32,7 @@ def test():
                                    [184.14220583,  230.85600882]])
 
     plt.imshow(R, cmap=plt.cm.Greys_r)
+    plt.show()
     # imsave('harris_response.png',(R-R.min())/(np.max(R)-np.min(R)))
 
     corners1 = HarrisCorners(im1, sigma1=2, sigma2=3, k=0.06)

@@ -36,6 +36,13 @@ def gradient(im_smooth):
     return gradient_x, gradient_y
 
 
+def gauss_2d(xi, yi):
+    p = np.array((10, 5.5, 5.5, 3, 10), dtype=np.float32)
+    arg = -(np.square(xi - p[1]) + np.square(yi - p[2])) / (2*p[3]*p[3])
+    y = p[0] * np.exp(arg) + p[4]
+    return y
+
+
 def smoothedGradient(im, sigma):
     """this function computes a smooth version of the image image using the convolution by a gaussian with standard deviation sigma
     and then compue the gradient in the x and y direction using kernels [1,0,-1] ans its transpose"""
@@ -46,38 +53,21 @@ def smoothedGradient(im, sigma):
 
 def HarrisScore(im, sigma1, sigma2, k=0.06):
     """this function compute the harris score for each pixel in the image and return the result as an image"""
-
-    R = np.zeros(im.shape)
-    offset = int(sigma1/2)
-    height = im.shape[0]
-    width = im.shape[1]
-    dx, dy = smoothedGradient(im, sigma1)
-    Ixx = dx**2
-    Ixy = dy*dx
-    Iyy = dy**2
-    im = np.float32(im)
-    print("Finding Corners...")
-    for y in range(offset, height-offset):
-        for x in range(offset, width-offset):
-            windowIxx = Ixx[y-offset:y+offset+1, x-offset:x+offset+1]
-            windowIxy = Ixy[y-offset:y+offset+1, x-offset:x+offset+1]
-            windowIyy = Iyy[y-offset:y+offset+1, x-offset:x+offset+1]
-            Sxx = windowIxx.sum()
-            Sxy = windowIxy.sum()
-            Syy = windowIyy.sum()
-            det = (Sxx * Syy) - (Sxy**2)
-            trace = Sxx + Syy
-            r = det - k*(trace**2)
-            if r > sigma2:
-                im.itemset((y, x), 0)
-                im.itemset((y, x), 0)
-    return im
+    I_x, I_y = smoothedGradient(im, sigma1)
+    w = gauss_2d(0, sigma2)
+    m11 = smoothGaussian(I_x**2, sigma2)
+    m12 = smoothGaussian(I_x*I_y, sigma2)
+    m21 = m12
+    m22 = smoothGaussian(I_y**2, sigma2)
+    R = m11*m22 - m12*m21 - k * (m11+m22)**2
+    return R
 
 
 def HarrisCorners(im, sigma1, sigma2, k=0.06):
     """this function extract local maximums ion the harris score image that are above 0.005 times the maxium of R and a local miximum in a region a radius 2"""
     R = HarrisScore(im, sigma1=sigma1, sigma2=sigma2, k=0.06)
-    peaks = skimage.feature.peak_local_max(R)
+    peaks = skimage.feature.peak.peak_local_max(
+        R, min_distance=2, threshold_rel=0.005)
     return peaks
 
 
@@ -180,7 +170,6 @@ def extractMatches(table, threshold=0.7):
 
 
 def main():
-    plt.ion()
     im1 = np.mean(np.array(imread('Image1.jpg')).astype(np.float), axis=2)
     im2 = np.mean(np.array(imread('Image2.jpg')).astype(np.float), axis=2)
 
