@@ -68,6 +68,7 @@ def HarrisCorners(im, sigma1, sigma2, k=0.06):
     R = HarrisScore(im, sigma1=sigma1, sigma2=sigma2, k=0.06)
     peaks = skimage.feature.peak.peak_local_max(
         R, min_distance=2, threshold_rel=0.005)
+    peaks = peaks[np.lexsort((peaks[:, 1], peaks[:, 0]))]
     return peaks
 
 
@@ -87,12 +88,12 @@ def extractPatches(im, points, N):
     """this function extracts patches of size N by N centered around each point privded in the matrix points
     and return a nb_points by N by N 3D array """
     assert(N % 2 == 1)
-    radius = (N-1)/2
+    radius = int((N-1)/2)
     patches = np.zeros((points.shape[0], N, N))
     for i, p in enumerate(points):
         if p[0]-radius >= 0 and p[0]+radius < im.shape[0] and p[1]-radius >= 0 and p[1]+radius < im.shape[1]:
             patches[i, :, :] = im[p[0]-radius:p[0] +
-                                  radius+1, p[1]-radius: p[1]+radius+1]
+                                  radius+1, p[1]-radius:p[1]+radius+1]
 
     assert(patches.shape[1] == N)
     assert(patches.shape[2] == N)
@@ -101,9 +102,22 @@ def extractPatches(im, points, N):
 
 def SSDTable(patches1, patches2):
     """this function computes the sum of square differences between each pair of patches"""
-    # TODO implement this function
-    dif = patches1.ravel() - patches2.ravel()
-    table = np.dot(dif, dif)
+    table = np.empty((patches1.shape[0], patches2.shape[0]))
+    for i in range(0, table.shape[0]):
+        for j in range(0, table.shape[1]):
+            table[i, j] = np.sum(np.power(patches1[i]-patches2[j], 2))
+    return table
+
+
+def NCCTable(patches1, patches2):
+    table = np.empty((patches1.shape[0], patches2.shape[0]))
+    for i in range(table.shape[0]):
+        a = np.mean((patches1[i] - patches1[i].mean()))
+        sigma_a = np.linalg.norm(a)
+        for j in range(table.shape[1]):
+            ab = np.mean((patches2[j] - patches2[j].mean()))
+            sigma_b = np.linalg.norm(ab)
+            table[i, j] = 1 - np.sum(a * ab) / (sigma_a * sigma_b)
     return table
 
 
@@ -170,30 +184,31 @@ def extractMatches(table, threshold=0.7):
 
 
 def main():
-    im1 = np.mean(np.array(imread('Image1.jpg')).astype(np.float), axis=2)
-    im2 = np.mean(np.array(imread('Image2.jpg')).astype(np.float), axis=2)
+    plt.ion()
+    im1 = np.mean(np.array(imread('Image1.png')).astype(np.float), axis=2)
+    im2 = np.mean(np.array(imread('Image2.png')).astype(np.float), axis=2)
 
     im_x, im_y = smoothedGradient(im1, sigma=2)
     # im_x[200:205,300:302]
     # array([[-0.73459394, -3.24114919],
-    # [-0.09954611, -1.66888352],
-    # [ 0.18028972, -0.33038019],
-    # [ 0.34290241,  0.77111416],
+    #[-0.09954611, -1.66888352],
+    #[ 0.18028972, -0.33038019],
+    #[ 0.34290241,  0.77111416],
     # [ 0.69410558,  1.81250375]])
 
     # im_y[200:205,300:302]
     # array([[-5.57636412, -4.37612   ],
-    # [-6.52248546, -5.5795648 ],
-    # [-7.72358858, -7.04014021],
-    # [-7.84553211, -7.21222404],
+    #[-6.52248546, -5.5795648 ],
+    #[-7.72358858, -7.04014021],
+    #[-7.84553211, -7.21222404],
     # [-6.19201956, -5.42149942]])
 
     R = HarrisScore(im1, sigma1=2, sigma2=3, k=0.06)
     # R[200:205,300:302]
     # array([[ 241.9235239 ,  261.08986283],
-    # [ 201.38571146,  225.27802866],
-    # [ 178.14703746,  208.63364944],
-    # [ 173.60252361,  211.83960978],
+    #[ 201.38571146,  225.27802866],
+    #[ 178.14703746,  208.63364944],
+    #[ 173.60252361,  211.83960978],
     # [ 184.0906068 ,  231.22448418]])
 
     plt.imshow(R, cmap=plt.cm.Greys_r)
@@ -202,28 +217,28 @@ def main():
     corners1 = HarrisCorners(im1, sigma1=2, sigma2=3, k=0.06)
     # corners1[:10,:]
     # array([[ 46, 223],
-    # [ 51, 216],
-    # [ 56, 166],
-    # [ 56, 175],
-    # [ 56, 316],
-    # [ 61, 159],
-    # [ 63, 250],
-    # [ 65, 256],
-    # [ 67, 303],
+    #[ 51, 216],
+    #[ 56, 166],
+    #[ 56, 175],
+    #[ 56, 316],
+    #[ 61, 159],
+    #[ 63, 250],
+    #[ 65, 256],
+    #[ 67, 303],
     # [ 69, 283]])
     displayPeaks(im1, corners1)
 
     corners2 = HarrisCorners(im2, sigma1=2, sigma2=3, k=0.06)
     # corners2[:10,:]
     # array([[ 56,  64],
-    # [ 67,  51],
-    # [ 68,  28],
-    # [ 70, 216],
-    # [ 71, 166],
-    # [ 73, 186],
-    # [ 73, 641],
-    # [ 74, 107],
-    # [ 74, 115],
+    #[ 67,  51],
+    #[ 68,  28],
+    #[ 70, 216],
+    #[ 71, 166],
+    #[ 73, 186],
+    #[ 73, 641],
+    #[ 74, 107],
+    #[ 74, 115],
     # [ 77, 240]])
     displayPeaks(im2, corners2)
 
@@ -233,11 +248,11 @@ def main():
 
     extractPatches(im1, np.array([[150, 300], [200, 270]]), 3)
     # array([[[ 37.66666667,  41.66666667,  44.33333333],
-    # [ 36.33333333,  38.66666667,  40.66666667],
+    #[ 36.33333333,  38.66666667,  40.66666667],
     # [ 37.33333333,  38.        ,  38.66666667]],
 
     # [[ 75.66666667,  82.66666667,  79.        ],
-    # [ 70.66666667,  73.33333333,  73.        ],
+    #[ 70.66666667,  73.33333333,  73.        ],
     # [ 91.33333333,  92.33333333,  91.33333333]]])
 
     patches2 = extractPatches(im2, corners2, N)
@@ -246,8 +261,8 @@ def main():
     t2 = t1-5
     SSDTable(t1, t2)
     # array([[    625.,   10000.,   50625.,  122500.],
-    # [  22500.,     625.,   10000.,   50625.],
-    # [  75625.,   22500.,     625.,   10000.],
+    #[  22500.,     625.,   10000.,   50625.],
+    #[  75625.,   22500.,     625.,   10000.],
     # [ 160000.,   75625.,   22500.,     625.]])
 
     table = SSDTable(patches1, patches2)
