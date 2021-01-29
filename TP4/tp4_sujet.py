@@ -13,7 +13,7 @@ from scipy.sparse import diags
 from scipy.sparse.linalg import spsolve, cg
 from xorshift import *
 from numpy import sin, cos, ceil, floor
-#import cv2
+# import cv2
 from math import sin, cos, radians, pi
 from numba import njit, prange
 
@@ -42,8 +42,8 @@ def plotLine(rho, theta, xmin, xmax, ymin, ymax, color='b'):
 
 
 def distancePointsLine(points, rho, theta):
-    """this function computes the set of euclidian distances between a set of points and a line 
-    parameterized with the angle theta (between the x axis and the vector joining the origin 
+    """this function computes the set of euclidian distances between a set of points and a line
+    parameterized with the angle theta (between the x axis and the vector joining the origin
     and the projection of the origin on the line) and the distance to the origin rho"""
     # https://stats.stackexchange.com/questions/71614/distance-measure-of-angles-between-two-vectors-taking-magnitude-into-account
     distances = np.abs(points[:, 0] * np.cos(theta) +
@@ -69,26 +69,24 @@ def countInliersLine(points, rho, theta, tau):
 
 def h(x, tau):
     """this function computes the smooth function h given in the slides that goes from 1 at location 0 to 0 at location tau"""
-    # TODO implement this function, code it for x a vector
     # you can use if/else with a loop over the elements of the vector , or
     # alternatively use a vectorized formulation by creating first a boolean vector b=x<tau that you then multiply by the polynome
-
+    hx = np.less(np.abs(x), tau) * np.power((1 - np.power(x / tau, 2)), 3)
     return hx
 
 
 def smoothLineScore(points, rho, theta, tau):
     """this function implements the smoothed score function of a line"""
-    # TODO implement this function
-
+    distances = distancePointsLine(points, rho, theta)
+    hx = h(distances, tau)
+    smooth_score = hx
     return smooth_score
 
 
 def getRhos(points, theta):
     """given an angle theta, this function computes the signed distance rho of the line with angle
     theta passing through each point"""
-    # TODO implement this function
-
-    return rhos
+    return points[:, 0] * np.cos(theta) + points[:, 1] * np.sin(theta)
 
 
 def rhoIdsFromRhos(rhos, min_rho, max_rho, nb_rhos):
@@ -146,7 +144,7 @@ def scoresHough(points, tau, nb_thetas, min_rho, max_rho, nb_rhos):
 
 
 def scoresHoughSmooth(points, tau, nb_thetas, min_rho, max_rho, nb_rhos):
-    """this function compute the same score table as the scoresSmoothBruteForce function 
+    """this function compute the same score table as the scoresSmoothBruteForce function
     but avoid looping over all rhos for each theta by computing an interval of valid rhos"""
     rho_grid, theta_grid = getRhoAndThetaGrid(
         nb_thetas, min_rho, max_rho, nb_rhos)
@@ -197,14 +195,14 @@ def main():
     plt.ion()
 
     with open('tp4_hough.pkl', 'rb') as f:
-        points,\
-            scores_brute_force,\
-            scores_hough,\
-            peak_rhos, peak_thetas,\
-            scores_smoothed_brute_force,\
-            scores_hough_smooth,\
-            peak_rhos_smooth,\
-            peak_thetas_smooth = pickle.load(f)
+        points,
+        scores_brute_force,
+        scores_hough,
+        peak_rhos, peak_thetas,
+        scores_smoothed_brute_force,
+        scores_hough_smooth,
+        peak_rhos_smooth,
+        peak_thetas_smooth = pickle.load(f)
 
     n = 100
     sigma = 0.03
@@ -231,14 +229,14 @@ def main():
     tau = 10*sigma
 
     distancePointsLine(points[1:5, :], 2, 0.3)
-    #array([ 0.02298727,  0.60614286,  0.87389925,  0.04036134])
+    # array([ 0.02298727,  0.60614286,  0.87389925,  0.04036134])
     countInliersLine(points,  2, 0.3, tau)  # 68
     h(np.linspace(0, 1, 11), 0.5)
     # array([ 1.      ,  0.884736,  0.592704,  0.262144,  0.046656,  0.      ,
     #   -0.      , -0.      , -0.      , -0.      , -0.      ])
     smoothLineScore(points, 2, 0.3, tau)  # 35.398607765521561
     getRhos(points[1:5, :], 0.3)
-    #array([ 2.02298727,  2.60614286,  2.87389925,  2.04036134])
+    # array([ 2.02298727,  2.60614286,  2.87389925,  2.04036134])
 
     # computes the lines score table using the brute force method from slide 7
     scores_brute_force = scoresBruteForce(
