@@ -96,14 +96,19 @@ def rhoIdsFromRhos(rhos, min_rho, max_rho, nb_rhos):
     delta_rho = (max_rho-min_rho)/(nb_rhos-1)
     return (rhos-min_rho)/delta_rho
 
+# https://numpy.org/doc/stable/reference/arrays.nditer.html
+
 
 def scoresBruteForce(points, tau, nb_thetas, min_rho, max_rho, nb_rhos):
     """this function loops over all angle/rho pairs and fill the score array using the inliers count"""
 
     rho_grid, theta_grid = getRhoAndThetaGrid(
         nb_thetas, min_rho, max_rho, nb_rhos)
-    # TODO finish coding this function
-
+    scores = np.zeros((rho_grid.shape[0], theta_grid.shape[0]))
+    for rho in np.nditer(rho_grid, flags=['f_index']):
+        for theta in np.nditer(theta_grid, flags=['f_index']):
+            scores[np.nditer(rho_grid, flags=['f_index']).index, np.nditer(theta_grid, flags=['f_index']).index] = countInliersLine(
+                points, rho, theta, tau)
     return scores
 
 
@@ -112,11 +117,7 @@ def scoresSmoothBruteForce(points, tau, nb_thetas, min_rho, max_rho, nb_rhos):
     the column corresponds to theta , the line to rho"""
     rho_grid, theta_grid = getRhoAndThetaGrid(
         nb_thetas, min_rho, max_rho, nb_rhos)
-
-    # TODO finish coding this function
-
-    # if you enjoy using numpy broadcasting you can avoid loops...but you should probably keep that for the end
-
+    scores = smoothLineScore(points, rho_grid, theta_grid, tau)
     return scores
 
 
@@ -136,10 +137,12 @@ def scoresHough(points, tau, nb_thetas, min_rho, max_rho, nb_rhos):
 
     rho_grid, theta_grid = getRhoAndThetaGrid(
         nb_thetas, min_rho, max_rho, nb_rhos)
-    # TODO: implement this function, you can call getRhos
-    # avoiding loops seems quite difficult here so go for loops
-    # be careful with the "range" function the range(m,n) will give number ranging from m to n-1 and not to n
-
+    scores = np.zeros((rho_grid.shape[0], theta_grid.shape[0]))
+    for theta in np.nditer(theta_grid, flags=['f_index']):
+        rhos = getRhos(points, theta)
+        for rho in np.nditer(rhos, flags=['f_index']):
+            scores[np.nditer(rhos, flags=['f_index']).index,
+                   np.nditer(theta_grid, flags=['f_index']).index] = countInliersLine(points, rho, theta, tau)
     return scores
 
 
@@ -149,7 +152,7 @@ def scoresHoughSmooth(points, tau, nb_thetas, min_rho, max_rho, nb_rhos):
     rho_grid, theta_grid = getRhoAndThetaGrid(
         nb_thetas, min_rho, max_rho, nb_rhos)
 
-    # TODO: implement this function, you can call getRhos  and h
+    # TODO: implement this function, you can call getRhos and h
 
     return scores
 
