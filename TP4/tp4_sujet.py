@@ -80,7 +80,7 @@ def smoothLineScore(points, rho, theta, tau):
     distances = distancePointsLine(points, rho, theta)
     hx = h(distances, tau)
     smooth_score = hx
-    return smooth_score
+    return np.sum(smooth_score, axis=0)
 
 
 def getRhos(points, theta):
