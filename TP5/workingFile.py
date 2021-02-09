@@ -17,6 +17,9 @@ plt.ion()
 
 def computeNormalizedImage(im, display_distribution=False):
     # TODO compute the normalized color image by dividing each chanel by the norm of the rgb vector for that pixel
+    pixels = np.asarray(im)
+    im_intensity_normalized = pixels.astype('float32')
+    im_intensity_normalized /= 255.0
     if display_distribution:
         # display the disribution of normalized color, should be on the unity sphere
         points = im_intensity_normalized.reshape(-1, 3)
