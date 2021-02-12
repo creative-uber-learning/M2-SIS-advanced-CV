@@ -9,30 +9,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pymaxflow
 import sys
+from numpy import random
 sys.path.append('./pymaxflow')
 from kmeans import K_Means
 
 def computeNormalizedImage(im, display_distribution=False):
     # TODO compute the normalized color image by dividing each chanel by the norm of the rgb vector for that pixel
-    pixels = np.asarray(im)
-    im_intensity_normalized = pixels.astype('float32')
-    im_intensity_normalized /= 255.0
+    im_intensity_normalized = im / np.sqrt(np.sum(im**2, axis=2,keepdims=True))
     if display_distribution:
         # display the disribution of normalized color, should be on the unity sphere
         points = im_intensity_normalized.reshape(-1, 3)
         fig = plt.figure(figsize=(8, 8))
         ax = fig.add_subplot(111, projection='3d')
-        colormap = np.array([[0, 0, 200], [250, 250, 0], [
-            0, 200, 0], [200, 0, 0]], dtype=np.uint8)
         ax.scatter(points[::100, 0], points[::100, 1],
-                   points[::100, 2], c=points[::100, :], edgecolors='none')
+                   points[::100, 2], c=points[::100, :])
         ax.set_xlabel('red')
         ax.set_ylabel('green')
         ax.set_zlabel('blue')
         ax.set_xlim([0, 1])
         ax.set_ylim([0, 1])
         ax.set_zlim([0, 1])
-        plt.draw()
         plt.show()
     return im_intensity_normalized
 
@@ -46,6 +42,11 @@ def displayLabelsImage(imlabels):
     plt.imshow(imlabelsColors)
     plt.show()
 
+def clustersLabels(clusters, pts):
+    labels = np.zeros(len(pts), dtype=np.uint8)
+    for clusterId, cluster in enumerate(clusters):
+            labels[cluster] = clusterId
+    return labels
 
 # TODO
 # Define your own kmeans function
@@ -58,9 +59,10 @@ def kmeans(X):
                     marker="o", color="k", s=150, linewidths=5)
 
     for classification in model.classifications:
-        for featureset in model.classifications[classification]:
+        for featureset in X[classification]:
             plt.scatter(featureset[0], featureset[1], marker="x", s=150, linewidths=5)
-
+    label = clustersLabels(model.classifications,X)
+    return centroid, label
 
 def imageKmeans(im_intensity_normalized, nb_clusters):
     # TODO
@@ -70,12 +72,10 @@ def imageKmeans(im_intensity_normalized, nb_clusters):
     # reshape the labels to have the size of the image to get an image called imlabels
     H = im_intensity_normalized.shape[0]
     W = im_intensity_normalized.shape[1]
-    nbpixels = H*W
-    truc = np.array([nbpixels, 3], dtype=np.float)
-    means = kmeans(im_intensity_normalized)
-    means, imlabels = scipy.cluster.vq.kmeans2(
-        truc, nb_clusters)
-    return imlabels, means
+    pixels = im_intensity_normalized.reshape((H*W,3))
+    #means, imlabels = scipy.cluster.vq.kmeans2(pixels, nb_clusters)
+    means2, label = kmeans(pixels)
+    return label, means2
 
 
 def displayUnaryLabelCosts(Costs):
@@ -90,13 +90,18 @@ def displayUnaryLabelCosts(Costs):
 def unaryLabelCosts(im_intensity_normalized, mean_colors):
     # TODO
     # given a matrix of color of size N by 3
-    # Compute an array Costs of size H by H by nb_clusters
+    # Compute an array Costs of size H by W by nb_clusters
     # such that Costs[i,j,k]= norm(im[i,j,:]-colors[:,k])**2
     # you can avoid loops by using numpy broadcasting
     # http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html
-
+    H = im_intensity_normalized.shape[0]
+    W = im_intensity_normalized.shape[1]
+    Costs = np.array([H,W,nb_clusters])
     # Solution without broadcasting:
-
+    for i in range(H.size):
+        for j in range(W.size):
+            for k in range(nb_clusters):
+                Costs[i,j,k] = np.linalg.norm(im_intensity_normalized[i,j,:] - mean_colors[k,:])
     # Solution using broadcasting:
     # we create first an array of size H x W x 1 x 3 from an array of size H x W x 3 using [:,:,None,:] to create a new axis of size one
     # then we can substract an array of size K x 3 from an array of size H x W x 1 x 3 using broadcasting
@@ -177,7 +182,6 @@ def graphCutSegment(costs_class0, costs_class1, imlabelsBinary):
 
 
 def main():
-    plt.ion()
     im = np.array(imread('tiger.png')).astype(np.float)
     H = im.shape[0]
     W = im.shape[1]
@@ -187,17 +191,16 @@ def main():
         im, display_distribution=True)
 
     nb_clusters = 4
-    from numpy import random
-    # make sure the kmean call is repeatable to check correctness of te code
+    # make sure the kmean call is repeatable to check correctness of the code
     random.seed((1000, 2000))
     imlabels, mean_colors = imageKmeans(
         im_intensity_normalized, nb_clusters=nb_clusters)
 
+    imlabels = imlabels.reshape(im.shape[:-1])
     displayLabelsImage(imlabels)
-    '''
     Costs = unaryLabelCosts(im_intensity_normalized, mean_colors)
     displayUnaryLabelCosts(Costs)
-
+    '''
     # retrive the class that is the most   represented in the center region of the image
     classSegment = np.argmax(np.bincount(imlabels[100:150, 150:250].flat))
 
@@ -216,7 +219,6 @@ def main():
     imlabelsBinary = imlabels != classSegment  
     imlabelsGC = graphCutSegment(costs_class0, costs_class1, imlabelsBinary)
 	'''
-    plt.ioff()
 
     # displayLabelsImage(imlabelsGC)
 
