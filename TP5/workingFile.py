@@ -7,15 +7,13 @@ from scipy import ndimage
 import scipy.ndimage
 import matplotlib.pyplot as plt
 import numpy as np
-import pymaxflow
-import sys
+import maxflow
 from numpy import random
-sys.path.append('./pymaxflow')
 from kmeans import K_Means
 
 def computeNormalizedImage(im, display_distribution=False):
-    # TODO compute the normalized color image by dividing each chanel by the norm of the rgb vector for that pixel
-    im_intensity_normalized = im / np.sqrt(np.sum(im**2, axis=2,keepdims=True))
+    im_norm = np.linalg.norm(im, axis=-1)[..., np.newaxis]
+    im_intensity_normalized = im / im_norm
     if display_distribution:
         # display the disribution of normalized color, should be on the unity sphere
         points = im_intensity_normalized.reshape(-1, 3)
@@ -58,33 +56,31 @@ def kmeans(X):
         plt.scatter(model.centroids[centroid][0], model.centroids[centroid][1],
                     marker="o", color="k", s=150, linewidths=5)
 
-    for classification in model.classifications:
-        for featureset in X[classification]:
-            plt.scatter(featureset[0], featureset[1], marker="x", s=150, linewidths=5)
     label = clustersLabels(model.classifications,X)
     return centroid, label
 
 def imageKmeans(im_intensity_normalized, nb_clusters):
-    # TODO
     # from the image, create a vector of point colors of size N by 3 with N the number of pixels in the image
     # and you can call the function kmeans2 from scipy.cluster.vq before defining your own kmeans function
     # retrive both the centers and the labels from this function
     # reshape the labels to have the size of the image to get an image called imlabels
     H = im_intensity_normalized.shape[0]
     W = im_intensity_normalized.shape[1]
+    points = im_intensity_normalized.reshape(-1, 3)
     pixels = im_intensity_normalized.reshape((H*W,3))
-    #means, imlabels = scipy.cluster.vq.kmeans2(pixels, nb_clusters)
+    means, imlabels = scipy.cluster.vq.kmeans2(pixels, nb_clusters)
+    point_labels = np.array([imlabels[point_idx] for point_idx in range(points.shape[0])])
+    img_labels = np.reshape(point_labels, im_intensity_normalized.shape[:2])
     means2, label = kmeans(pixels)
-    return label, means2
+    return img_labels, means
 
 
 def displayUnaryLabelCosts(Costs):
     plt.figure()
-    # print("Costs.shape[2]:", Costs.shape[2])
     # TODO : improve this part to be more general
     for i in range(4):
         plt.subplot(2, 2, i+1)
-        plt.imshow(Costs[:, :, i], cmap=plt.cm.Greys_r)
+        plt.imshow(Costs, cmap=plt.cm.Greys_r)
 
 
 def unaryLabelCosts(im_intensity_normalized, mean_colors):
@@ -96,16 +92,19 @@ def unaryLabelCosts(im_intensity_normalized, mean_colors):
     # http://docs.scipy.org/doc/numpy/user/basics.broadcasting.html
     H = im_intensity_normalized.shape[0]
     W = im_intensity_normalized.shape[1]
-    Costs = np.array([H,W,nb_clusters])
+    #Costs = np.array([H,W,4])
     # Solution without broadcasting:
-    for i in range(H.size):
-        for j in range(W.size):
-            for k in range(nb_clusters):
-                Costs[i,j,k] = np.linalg.norm(im_intensity_normalized[i,j,:] - mean_colors[k,:])
+    '''
+    for i in range(H):
+        for j in range(W):
+            for k in range(4):
+                Costs = np.linalg.norm(im_intensity_normalized[i,j,:] - mean_colors[k,:])
+    '''
     # Solution using broadcasting:
     # we create first an array of size H x W x 1 x 3 from an array of size H x W x 3 using [:,:,None,:] to create a new axis of size one
     # then we can substract an array of size K x 3 from an array of size H x W x 1 x 3 using broadcasting
     # to get an array of size H x W x K x 3 and we sum the square along the last dimension
+    Costs = np.linalg.norm(im_intensity_normalized[:, :, np.newaxis, :] - mean_colors, axis=-1) ** 2
     return Costs
 
 
@@ -117,8 +116,8 @@ def graphCutSegment(costs_class0, costs_class1, imlabelsBinary):
 
     # -----------------------Segmentation method using regional data term and constant edge cost-------------------------------
 
-    g = pymaxflow.PyGraph(nbpixels, nbpixels * 2)
-    g.add_node(nbpixels)
+    g = maxflow.Graph[float](nbpixels, nbpixels * 2)
+    
 
     # TODO
     # encode unary term of the energy shown in those slides of graph-cut (i.e., sum_p Dp(lp) +sum_pq Vqp(lq,lp))
@@ -134,9 +133,9 @@ def graphCutSegment(costs_class0, costs_class1, imlabelsBinary):
     # otherwise will get an assertion error
     # Note :the unvectorized version is documented in the graph.h file un pymaxflow
 
-    # indices =?
-    # costs_arcs_from_s_to_nodes= ?
-    # costs_arcs_from_nodes_to_t= ?
+    indices = g.add_node(nbpixels)
+    costs_arcs_from_s_to_nodes = costs_class0
+    costs_arcs_from_nodes_to_t = costs_class1
     g.add_tweights_vectorized(indices.astype(np.int32), costs_arcs_from_s_to_nodes.astype(
         np.float32), costs_arcs_from_nodes_to_t.astype(np.float32))
 
@@ -160,16 +159,15 @@ def graphCutSegment(costs_class0, costs_class1, imlabelsBinary):
     alpha = 0.1
 
     # ------ adding horizontal edges------
-    indices = np.arange(nbpixels) .reshape(H, W).astype(np.int32)
-    # indices_node_i = ?
-    # indices_node_j = ?
-    # cost_diff= ?
+    indices = np.arange(nbpixels).reshape(H, W).astype(np.int32)
+    indices_node_i = indices[:, :-1].ravel()
+    indices_node_j = indices[:, 1:].ravel()
+    cost_diff = alpha
     g.add_edge_vectorized(indices_node_i, indices_node_j, cost_diff, cost_diff)
 
     # ------ adding vertical edges------
-    # indices_node_i = ?
-    # indices_node_j = ?
-    # cost_diff=n ?
+    indices_node_i = indices[1:, :-1].ravel()
+    indices_node_j = indices[:-1, 1:].ravel()
     g.add_edge_vectorized(indices_node_i, indices_node_j, cost_diff, cost_diff)
 
     # Getting the result image
@@ -183,44 +181,33 @@ def graphCutSegment(costs_class0, costs_class1, imlabelsBinary):
 
 def main():
     im = np.array(imread('tiger.png')).astype(np.float)
-    H = im.shape[0]
-    W = im.shape[1]
-    nbpixels = H*W
-
-    im_intensity_normalized = computeNormalizedImage(
-        im, display_distribution=True)
-
-    nb_clusters = 4
-    # make sure the kmean call is repeatable to check correctness of the code
-    random.seed((1000, 2000))
-    imlabels, mean_colors = imageKmeans(
-        im_intensity_normalized, nb_clusters=nb_clusters)
-
-    imlabels = imlabels.reshape(im.shape[:-1])
-    displayLabelsImage(imlabels)
-    Costs = unaryLabelCosts(im_intensity_normalized, mean_colors)
+    H=im.shape[0]
+    W=im.shape[1]
+    nbpixels=H*W   
+    im_intensity_normalized=computeNormalizedImage(im,display_distribution=True)
+    nb_clusters=4
+    random.seed((1000,2000))# make sure the kmean call is repeatable to check correctness of te code
+    imlabels,mean_colors=imageKmeans(im_intensity_normalized,nb_clusters =nb_clusters)
+    displayLabelsImage(imlabels) 
+    Costs=unaryLabelCosts(im_intensity_normalized,mean_colors)
     displayUnaryLabelCosts(Costs)
-    '''
-    # retrive the class that is the most   represented in the center region of the image
-    classSegment = np.argmax(np.bincount(imlabels[100:150, 150:250].flat))
+    # retrive the class that is the most   represented in the center region of the image    
+    classSegment=np.argmax(np.bincount(imlabels[100:150,150:250].flat)) 
 
     # New cost using only two classes by grouping all other classes into a single class ,
-    # we take the minium of the cost in the set of other classes to get the unary cost for new
-    # aggregated class
-    otherClasses = [i for i in range(nb_clusters) if i != classSegment]
-    costs_class0 = Costs[:, :, classSegment]
-    costs_class1 = np.min(Costs[:, :, otherClasses], axis=2)
+    # we take the minium of the cost in the set of other classes to get the unary cost for new 
+    # aggregated class   
+    otherClasses=[i for i in range(nb_clusters) if i!=classSegment ]  
+    costs_class0=Costs[:,:,classSegment]
+    costs_class1=np.min(Costs[:,:,otherClasses],axis=2)
     plt.figure()
-    plt.subplot(1, 2, 1)
-    plt.imshow(costs_class0, cmap=plt.cm.Greys_r)
-    plt.subplot(1, 2, 2)
-    plt.imshow(costs_class1, cmap=plt.cm.Greys_r)
-
-    imlabelsBinary = imlabels != classSegment  
-    imlabelsGC = graphCutSegment(costs_class0, costs_class1, imlabelsBinary)
-	'''
-
-    # displayLabelsImage(imlabelsGC)
+    plt.subplot(1,2,1)
+    plt.imshow(costs_class0,cmap=plt.cm.Greys_r)
+    plt.subplot(1,2,2)    
+    plt.imshow(costs_class1,cmap=plt.cm.Greys_r)    
+    imlabelsBinary=imlabels!=classSegment
+    imlabelsGC=graphCutSegment(costs_class0,costs_class1,imlabelsBinary)
+    displayLabelsImage(imlabelsGC)
 
 
 if __name__ == "__main__":

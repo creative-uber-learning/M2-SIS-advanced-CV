@@ -28,9 +28,8 @@ class K_Means:
             prev_centroids = dict(self.centroids)
 
             for classification in self.classifications:
-                print(len(self.classifications[classification]))
-            for classification in self.classifications:
-                self.centroids[classification] = np.average(data[self.classifications[classification]], axis=0)
+                if(len(self.classifications[classification]) != 0):
+                    self.centroids[classification] = np.average(data[self.classifications[classification]], axis=0)
 
             optimized = True
             
